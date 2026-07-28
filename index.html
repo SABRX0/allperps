@@ -394,20 +394,24 @@
     $('#mainBtn').onclick = async ()=>{
       $('#mainLabel').innerHTML = '<span class="spinner"></span> Granting session…';
       $('#mainBtn').disabled = true;
+      dbg('grant tapped · delegateFn=' + (!!delegateFn));
       try{
         if(delegateFn){
-          // real Privy delegation (requires session signers enabled in dashboard)
-          await delegateFn({ address: addr, chainType:'solana' });
+          // Try real Privy delegation, but NEVER hang: race it against a timeout.
+          // Real delegation needs Session signers enabled in the dashboard; until
+          // then (and with no protocol to trade yet) we complete as a demo grant.
+          const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('delegation timeout')), 6000));
+          await Promise.race([ delegateFn({ address: addr, chainType: 'solana' }), timeout ]);
+          dbg('delegation resolved ✓');
         } else {
-          await new Promise(r=>setTimeout(r,1100)); // demo fallback
+          dbg('no delegateFn → demo grant');
+          await new Promise(r=>setTimeout(r,900));
         }
-        $('#done').classList.add('show');
       }catch(err){
-        console.error('delegate failed',err);
-        // graceful demo fallback so the flow is always demoable
-        await new Promise(r=>setTimeout(r,300));
-        $('#done').classList.add('show');
+        dbg('delegation skipped: ' + (err && (err.message||err)) + ' → completing as demo');
+        await new Promise(r=>setTimeout(r,200));
       }
+      $('#done').classList.add('show'); // always land on success — flow never hangs
     };
 
     boot();
