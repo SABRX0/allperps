@@ -115,13 +115,15 @@
 
   .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(16px);background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:12px 16px;font-weight:600;font-size:13px;opacity:0;transition:.3s;z-index:50;box-shadow:0 20px 50px -20px rgba(0,0,0,.4);}
   .toast.on{opacity:1;transform:translateX(-50%) translateY(0);}
+  #dbg{display:none;position:fixed;left:0;right:0;bottom:0;max-height:42vh;overflow:auto;margin:0;z-index:60;
+    background:#0b0b0d;color:#7CFC9A;font-family:var(--mono);font-size:11px;line-height:1.5;padding:12px 14px;white-space:pre-wrap;border-top:2px solid #34c759;}
 </style>
 </head>
 <body>
   <div class="app">
     <div class="nav">
       <span class="title">All Perps</span>
-      <span class="ctx"><span class="dot" id="ctxDot"></span><span id="ctxTxt">Connecting…</span></span>
+      <span class="ctx" id="ctx"><span class="dot" id="ctxDot"></span><span id="ctxTxt">Connecting…</span></span>
     </div>
 
     <!-- ============ STEP 1 — SIGN IN ============ -->
@@ -214,6 +216,7 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <pre id="dbg"></pre>
   <div id="privy-root" style="display:none"></div>
 
   <!-- =========================================================================
@@ -230,12 +233,19 @@
     const $ = s => document.querySelector(s);
     const toast = m => { const t=$('#toast'); t.textContent=m; t.classList.add('on'); setTimeout(()=>t.classList.remove('on'),2600); };
 
+    // ---------- diagnostics (tap the ⓘ dot in the header to reveal) ----------
+    const dbg = (m)=>{ const b=$('#dbg'); if(b){ b.textContent += m + '\n'; } console.log('[AP]', m); };
+    window.addEventListener('error', e => dbg('JS ERROR: ' + (e.message || (e.error && e.error.message) || e.filename)));
+    window.addEventListener('unhandledrejection', e => dbg('PROMISE REJECT: ' + (e.reason && (e.reason.message || e.reason))));
+    $('#ctx').addEventListener('click', ()=>{ const b=$('#dbg'); b.style.display = b.style.display==='block'?'none':'block'; });
+
     // ---------- Telegram bootstrap ----------
     const TG = window.Telegram && window.Telegram.WebApp;
     const inTelegram = !!(TG && TG.initData && TG.initData.length > 0);
     if (TG) { try { TG.ready(); TG.expand(); } catch(_){} }
     $('#ctxDot').classList.toggle('on', inTelegram);
     $('#ctxTxt').textContent = inTelegram ? 'Telegram' : 'Open in Telegram';
+    dbg('boot · inTelegram=' + inTelegram + ' · initDataLen=' + (TG && TG.initData ? TG.initData.length : 0) + ' · appId=' + (window.PRIVY_APP_ID||'').slice(0,6));
 
     // ---------- state ----------
     let budget = 500, authed = false, addr = null;
@@ -272,7 +282,12 @@
     const APP_ID = window.PRIVY_APP_ID;
     let privyApi = null, delegateFn = null;
 
+    // Fallback handlers so a tap BEFORE the SDK is ready tells us so (instead of nothing).
+    $('#tgBtn').onclick = ()=> dbg('TG tapped — SDK not ready yet');
+    $('#emailBtn').onclick = ()=> dbg('email tapped — SDK not ready yet');
+
     async function boot(){
+      dbg('importing Privy SDK from esm.sh …');
       try{
         const React = (await import('https://esm.sh/react@18.3.1')).default;
         const { createRoot } = await import('https://esm.sh/react-dom@18.3.1/client');
@@ -304,19 +319,31 @@
           }catch(_){}
 
           React.useEffect(()=>{
+            dbg('privy effect · ready='+p.ready+' · tgHook='+HAS_TG_HOOK+' · authed='+p.authenticated);
             if(!p.ready) return;
-            $('#tgBtn').onclick = ()=>{
-              if(inTelegram && tg && tg.initLoginWithTelegram){ $('#tgLabel').innerHTML='<span class="spinner"></span>'; tg.initLoginWithTelegram().catch(e=>{console.error(e);toast('Telegram login failed');$('#tgLabel').textContent='Continue with Telegram';}); }
-              else { p.login(); }
+            dbg('PRIVY READY ✓');
+            const startTg = ()=>{
+              if(inTelegram && tg && tg.initLoginWithTelegram){
+                dbg('calling initLoginWithTelegram() …');
+                $('#tgLabel').innerHTML='<span class="spinner"></span>';
+                tg.initLoginWithTelegram()
+                  .then(()=> dbg('initLoginWithTelegram resolved'))
+                  .catch(e=>{ dbg('TG LOGIN FAILED: '+(e && (e.message||e))); toast('Telegram login failed — tap ⓘ'); $('#tgLabel').textContent='Continue with Telegram'; });
+              } else {
+                dbg('no TG context/hook → opening Privy modal');
+                try{ p.login(); }catch(e){ dbg('p.login threw: '+(e&&e.message)); }
+              }
             };
-            $('#emailBtn').onclick = ()=> p.login();
+            $('#tgBtn').onclick = startTg;
+            $('#emailBtn').onclick = ()=>{ dbg('email tap → p.login()'); try{ p.login(); }catch(e){ dbg('p.login threw: '+(e&&e.message)); } };
             if(inTelegram && !p.authenticated && tg && tg.initLoginWithTelegram){
-              $('#tgLabel').innerHTML='<span class="spinner"></span>';
-              tg.initLoginWithTelegram().catch(()=>{ $('#tgLabel').textContent='Continue with Telegram'; });
+              dbg('auto-starting TG login');
+              startTg();
             }
           },[p.ready]);
 
           React.useEffect(()=>{
+            if(p.authenticated){ dbg('AUTHENTICATED ✓ · resolving wallet…'); }
             if(p.authenticated && !authed){
               authed = true;
               let n=0;
@@ -336,9 +363,9 @@
           appearance:{ accentColor:'#007aff', walletChainType:'solana-only' },
           embeddedWallets:{ solana:{ createOnLogin:'users-without-wallets' }, showWalletUIs:true },
         };
+        dbg('SDK imported ✓ · tgHook='+HAS_TG_HOOK);
         createRoot($('#privy-root')).render(h(PrivyProvider,{appId:APP_ID,config},h(Controller)));
-        console.log('[AllPerps] Privy up · inTelegram='+inTelegram+' · tgHook='+HAS_TG_HOOK);
-      }catch(err){ console.error('[AllPerps] Privy failed',err); toast('Login failed to load'); }
+      }catch(err){ dbg('SDK/BOOT FAILED: '+(err && (err.message||err))); toast('Login failed to load — tap ⓘ'); }
     }
 
     function onAuthed(a){
