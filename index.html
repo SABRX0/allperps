@@ -343,15 +343,19 @@
           },[p.ready]);
 
           React.useEffect(()=>{
-            if(p.authenticated){ dbg('AUTHENTICATED ✓ · resolving wallet…'); }
             if(p.authenticated && !authed){
               authed = true;
+              dbg('AUTHENTICATED ✓ · showing app, resolving wallet in background…');
+              // Move to the consent screen IMMEDIATELY — don't make the user wait
+              // on a blocking wallet-creation screen. Fill the address when ready.
+              goConsent();
+              $('#consentAddr').textContent = 'creating wallet…';
               let n=0;
               (function tick(){
                 const a = solAddr(p.user);
-                if(a){ addr=a; onAuthed(a); }
-                else if(n++<16){ setTimeout(tick,500); }
-                else { onAuthed(null); }
+                if(a){ dbg('wallet ready: '+a.slice(0,6)); addr=a; $('#consentAddr').textContent = a.slice(0,4)+'…'+a.slice(-4); loadBalance(a); }
+                else if(n++<80){ setTimeout(tick,500); } // keep trying up to ~40s, non-blocking
+                else { dbg('wallet still pending after 40s'); $('#consentAddr').textContent='wallet pending — you can still set your budget'; }
               })();
             }
           },[p.authenticated, p.user]);
@@ -361,7 +365,9 @@
         const config = {
           loginMethods:['telegram','email'],
           appearance:{ accentColor:'#007aff', walletChainType:'solana-only' },
-          embeddedWallets:{ solana:{ createOnLogin:'users-without-wallets' }, showWalletUIs:true },
+          // showWalletUIs:false → Privy creates the wallet silently in the background,
+          // no blocking "creating your wallet…" modal. Our own UI handles the wait.
+          embeddedWallets:{ solana:{ createOnLogin:'users-without-wallets' }, showWalletUIs:false },
         };
         dbg('SDK imported ✓ · tgHook='+HAS_TG_HOOK);
         createRoot($('#privy-root')).render(h(PrivyProvider,{appId:APP_ID,config},h(Controller)));
