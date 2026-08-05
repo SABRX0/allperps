@@ -137,10 +137,10 @@
       </div>
 
       <div class="preview">
-        <div class="ph"><span class="tag">Running hot</span><span class="hint">up 240% today · short the pump?</span></div>
+        <div class="ph"><span class="tag">Running hot</span><span class="hint">up 240% today — short the pump?</span></div>
         <div class="coin">
           <div class="tic">M</div>
-          <div><div class="nm">MOODENG</div><div class="px">$0.4218 · $2.1M OI</div></div>
+          <div><div class="nm">MOODENG</div><div class="px">$0.4218 — $2.1M OI</div></div>
           <div class="chg">+240%</div>
         </div>
         <div class="bt"><span class="s">Short</span><span class="l">Long</span></div>
@@ -161,19 +161,13 @@
         </div>
         <h1>You stay in control</h1>
         <p class="lead">Approve once and <b>trade in chat with no popups</b> for the next 24 hours. Your wallet stays yours — we can never withdraw it.</p>
-        <div class="walletchip"><span class="dot on"></span><span id="consentAddr">wallet ready</span> · <span id="consentBal">—</span></div>
+        <div class="walletchip"><span class="dot on"></span><span id="consentAddr">wallet ready</span> <span style="opacity:.45">—</span> <span id="consentBal">—</span></div>
       </div>
 
       <div class="grouphdr">Session budget</div>
       <div class="group">
-        <div class="chips" id="chips">
-          <div class="chip" data-v="100">$100</div>
-          <div class="chip on" data-v="500">$500</div>
-          <div class="chip" data-v="1000">$1,000</div>
-          <div class="chip" data-v="custom">Custom</div>
-        </div>
+        <div class="budgetline">Trades up to <b id="budgetEcho">$500</b> before re-approving. <a href="#" id="budgetChange" style="color:var(--accent);text-decoration:none;font-weight:600">Change</a></div>
         <div id="custom"><input type="number" inputmode="numeric" placeholder="Enter amount in USD" id="customInput"></div>
-        <div class="budgetline">All Perps can open up to <b id="budgetEcho">$500</b> of trades before you re-approve.</div>
       </div>
 
       <div class="grouphdr">What this allows</div>
@@ -201,7 +195,7 @@
   <!-- fixed footer, label swaps per step -->
   <div class="foot" id="foot" style="display:none">
     <div class="inner">
-      <button class="cta" id="mainBtn"><span id="mainLabel">Allow trading · $500 for 24h</span></button>
+      <button class="cta" id="mainBtn"><span id="mainLabel">Allow trading $500 for 24h</span></button>
       <div class="footnote" id="footnote">Powered by Privy session signers</div>
     </div>
   </div>
@@ -211,7 +205,7 @@
     <div class="check"><svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M5 12.5l4.5 4.5L19 7" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
     <h2>You're all set</h2>
     <p>Head back to the chat and trade — no popups until your session ends.</p>
-    <div class="pill" id="donePill">Session active · $500 budget · 24h</div>
+    <div class="pill" id="donePill">Session active — $500 for 24h</div>
     <div class="back" id="backBtn">Back to chat →</div>
   </div>
 
@@ -260,19 +254,18 @@
     }
     function refresh(){
       $('#budgetEcho').textContent = budget ? fmt(budget) : '—';
-      $('#mainLabel').textContent = budget ? `Allow trading · ${fmt(budget)} for 24h` : 'Enter an amount';
-      $('#donePill').textContent = `Session active · ${fmt(budget)} budget · 24h`;
+      $('#mainLabel').textContent = budget ? `Allow trading ${fmt(budget)} for 24h` : 'Enter an amount';
+      $('#donePill').textContent = `Session active — ${fmt(budget)} for 24h`;
       $('#mainBtn').disabled = !budget;
     }
 
-    // budget chips
-    const chips = $('#chips'), custom = $('#custom'), customInput = $('#customInput');
-    chips.addEventListener('click', e=>{
-      const c = e.target.closest('.chip'); if(!c) return;
-      [...chips.children].forEach(x=>x.classList.remove('on')); c.classList.add('on');
-      if(c.dataset.v==='custom'){ custom.classList.add('show'); customInput.focus(); budget=Number(customInput.value)||0; }
-      else { custom.classList.remove('show'); budget=Number(c.dataset.v); }
-      refresh();
+    // budget: defaults to $500, "Change" reveals an optional custom amount
+    const custom = $('#custom'), customInput = $('#customInput');
+    $('#budgetChange').addEventListener('click', e=>{
+      e.preventDefault();
+      const showing = custom.classList.toggle('show');
+      if(showing){ if(!customInput.value) customInput.value = budget; customInput.focus(); }
+      else if(!Number(customInput.value)){ budget = 500; refresh(); }
     });
     customInput.addEventListener('input', ()=>{ budget=Number(customInput.value)||0; refresh(); });
 
@@ -386,7 +379,7 @@
         if(!r.ok) throw 0;
         const d = await r.json();
         const sol = d && d.SOL && d.SOL.uiAmount != null ? Number(d.SOL.uiAmount) : 0;
-        $('#consentBal').textContent = sol ? (sol.toFixed(3)+' SOL') : 'empty · deposit to start';
+        $('#consentBal').textContent = sol ? (sol.toFixed(3)+' SOL') : 'empty — deposit to start';
       }catch(_){ $('#consentBal').textContent='—'; }
     }
 
